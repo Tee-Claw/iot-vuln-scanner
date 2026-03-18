@@ -1,8 +1,12 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Put } from '@nestjs/common';
 import { ScannerService, ScanResult } from './scanner.service';
 
 class StartScanDto {
   target!: string;
+}
+
+class ConfigureShodanDto {
+  apiKey!: string;
 }
 
 @Controller('api/scans')
@@ -22,5 +26,11 @@ export class ScannerController {
   @Get(':id')
   getScanResult(@Param('id') id: string): ScanResult | undefined {
     return this.scannerService.getScanResult(id);
+  }
+
+  @Put('shodan')
+  configureShodan(@Body() dto: ConfigureShodanDto): { success: boolean } {
+    this.scannerService.configureShodan(dto.apiKey);
+    return { success: true };
   }
 }
