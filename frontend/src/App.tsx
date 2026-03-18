@@ -15,6 +15,8 @@ interface Scan {
   target: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   devices: Device[];
+  startedAt: string;
+  completedAt?: string;
 }
 
 function App() {
@@ -33,8 +35,10 @@ function App() {
   const fetchDevices = async () => {
     try {
       const res = await fetch(`${API_URL}/api/devices`);
-      const data = await res.json();
-      setDevices(data);
+      if (res.ok) {
+        const data = await res.json();
+        setDevices(data);
+      }
     } catch (err) {
       console.error('Failed to fetch devices:', err);
     }
@@ -43,8 +47,10 @@ function App() {
   const fetchScans = async () => {
     try {
       const res = await fetch(`${API_URL}/api/scans`);
-      const data = await res.json();
-      setScans(data);
+      if (res.ok) {
+        const data = await res.json();
+        setScans(data);
+      }
     } catch (err) {
       console.error('Failed to fetch scans:', err);
     }
@@ -65,65 +71,134 @@ function App() {
     setLoading(false);
   };
 
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div className="app">
-      <header>
-        <h1>🔐 IoT Vulnerability Scanner</h1>
+      <header className="header">
+        <div className="header-content">
+          <div className="header-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <h1>IoT Vulnerability Scanner</h1>
+        </div>
+        <p className="header-subtitle">Discover internet-connected IoT assets and review scan findings</p>
       </header>
 
-      <main>
-        <section className="scan-section">
-          <h2>Start New Scan</h2>
+      <section className="scan-section">
+        <div className="section-header">
+          <span className="section-title">New Scan</span>
+        </div>
+        <div className="scan-panel">
           <div className="scan-form">
             <input
               type="text"
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              placeholder="Network (e.g., 192.168.1.0/24)"
+              placeholder="Enter target (CIDR, IP, or hostname)"
             />
             <button onClick={startScan} disabled={loading}>
               {loading ? 'Scanning...' : 'Start Scan'}
             </button>
           </div>
-        </section>
+          <p className="scan-hint">Accepted formats: 192.168.1.0/24, 192.168.1.1, hostname.local</p>
+        </div>
+      </section>
 
-        <section className="devices-section">
-          <h2>Discovered Devices ({devices.length})</h2>
+      <section className="devices-section">
+        <div className="section-header">
+          <span className="section-title">Discovered Devices</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+            {devices.length} device/devices
+          </span>
+        </div>
+        
+        {devices.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            </div>
+            <p className="empty-title">No devices discovered</p>
+            <p className="empty-text">Run a scan to discover IoT devices on your network</p>
+          </div>
+        ) : (
           <div className="devices-grid">
-            {devices.length === 0 ? (
-              <p className="empty">No devices found. Run a scan to discover devices.</p>
-            ) : (
-              devices.map((device) => (
-                <div key={device.id} className="device-card">
-                  <h3>{device.hostname || device.ip}</h3>
-                  <p>IP: {device.ip}</p>
-                  <p>MAC: {device.mac}</p>
-                  <p>Vendor: {device.vendor || 'Unknown'}</p>
-                  <p>Type: {device.deviceType || 'Unknown'}</p>
-                  <p>Ports: {device.openPorts?.join(', ') || 'None'}</p>
+            {devices.map((device) => (
+              <div key={device.id} className="device-card">
+                <div className="device-header">
+                  <span className="device-title">{device.hostname || device.ip}</span>
+                  <span className="device-type">{device.deviceType || 'Unknown'}</span>
                 </div>
-              ))
-            )}
+                <div className="device-details">
+                  <div className="device-detail">
+                    <span className="device-label">IP Address</span>
+                    <span className="device-value">{device.ip}</span>
+                  </div>
+                  <div className="device-detail">
+                    <span className="device-label">MAC Address</span>
+                    <span className="device-value">{device.mac}</span>
+                  </div>
+                  <div className="device-detail">
+                    <span className="device-label">Vendor</span>
+                    <span className="device-value">{device.vendor || 'Unknown'}</span>
+                  </div>
+                  <div className="device-detail">
+                    <span className="device-label">Open Ports</span>
+                    <span className="device-value">
+                      {device.openPorts?.length > 0 ? device.openPorts.join(', ') : 'None'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-        </section>
+        )}
+      </section>
 
-        <section className="scans-section">
-          <h2>Scan History</h2>
-          <div className="scans-list">
-            {scans.length === 0 ? (
-              <p className="empty">No scans yet.</p>
-            ) : (
-              scans.map((scan) => (
-                <div key={scan.id} className={`scan-card ${scan.status}`}>
-                  <h3>Target: {scan.target}</h3>
-                  <p>Status: {scan.status}</p>
-                  <p>Devices found: {scan.devices.length}</p>
-                </div>
-              ))
-            )}
+      <section className="scans-section">
+        <div className="section-header">
+          <span className="section-title">Scan History</span>
+        </div>
+        
+        {scans.length === 0 ? (
+          <div className="empty-state" style={{ padding: '24px' }}>
+            <p className="empty-text">No scans yet</p>
           </div>
-        </section>
-      </main>
+        ) : (
+          <div className="scans-list">
+            {scans.map((scan) => (
+              <div key={scan.id} className="scan-card">
+                <div className="scan-info">
+                  <span className="scan-target">{scan.target}</span>
+                </div>
+                <div className="scan-meta">
+                  <span className={`scan-status ${scan.status}`}>
+                    {scan.status}
+                  </span>
+                  <span className="scan-count">
+                    {scan.devices.length} device{scan.devices.length !== 1 ? 's' : ''}
+                  </span>
+                  <span className="scan-time">{formatDate(scan.startedAt)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
